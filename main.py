@@ -1,9 +1,14 @@
-from exploring import *
-from maze import *
-from warnings import warn
+import sys
 from typing import Optional, List, Tuple
-import numpy as np
+from warnings import warn
+
 import matplotlib.pyplot as plt
+import numpy as np
+from PyQt5 import QtWidgets
+
+from exploring import *
+from gui.models import MainWindow
+from maze import *
 
 
 class ExploreManager(object):
@@ -15,6 +20,12 @@ class ExploreManager(object):
         self.maze: Optional[Maze] = None
         self.bot_list: Optional[List[Bot]] = None
         self.task_list: Optional[List[Tuple[int, int]]] = None
+        self.running: bool = False
+
+    def update_data(self, new_data):
+        self.setup_simulation(bot_number=new_data[0],
+                              height=new_data[1],
+                              width=new_data[2])
 
     def setup_simulation(self,
                          manual_matrix: np.ndarray = None,
@@ -40,7 +51,7 @@ class ExploreManager(object):
         # Создание лабиринта
 
         self.maze = Maze()
-        if manual_matrix is not None:
+        if type(manual_matrix) == np.ndarray:
             self.maze.set_matrix_manually(manual_matrix)
         else:
             self.maze.set_matrix_randomly(height=height, width=width)
@@ -60,6 +71,8 @@ class ExploreManager(object):
 
         self.maze.change_block(starting_point, Maze.BOT_BLOCK)
         self.bot_list[0].activate(starting_point)
+
+        self.running = True
 
     def get_active_bots(self) -> List[Bot]:
         """
@@ -143,15 +156,39 @@ class ExploreManager(object):
             bot.activate(task)
             self.maze.change_block(task, Maze.BOT_BLOCK)
 
+    def on_step_click(self):
+        if self.running:
+            self.exploring_step()
+        else:
+            warn('Входные параметры не заданны, выполнение невозможно')
+
+    def on_reset_click(self):
+        if self.maze is not None:
+            self.maze.reset()
+            self.setup_simulation(manual_matrix=self.maze.matrix)
+        else:
+            warn('Лабиринт не задан, сброс невозможен')
+
 
 if __name__ == '__main__':
     em = ExploreManager()
-    em.setup_simulation(bot_number=1)
-    while len(em.get_active_bots()) > 0:
-        em.exploring_step()
-        plt.imshow(em.maze.matrix)
-        plt.pause(0.01)
-        plt.clf()
+    # while len(em.get_active_bots()) > 0:
+    #     em.exploring_step()
+    #     plt.imshow(em.maze.matrix)
+    #     plt.pause(0.01)
+    #     plt.clf()
+    #
+    # plt.imshow(em.maze.matrix)
+    # plt.show()
+    app = QtWidgets.QApplication(sys.argv)
+    window = MainWindow(em)
 
-    plt.imshow(em.maze.matrix)
-    plt.show()
+    # window.link_start_btn()
+    # window.link_stop_btn()
+    window.link_step_btn(em.on_step_click)
+    window.link_reset_btn(em.on_reset_click)
+    window.link_new_maze_btn(window.setup_win.show)
+    # window.link_save_btn()
+
+    window.show()
+    app.exec_()

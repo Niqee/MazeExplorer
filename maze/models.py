@@ -1,8 +1,9 @@
-import numpy as np
-import matplotlib.pyplot as plt
+from random import choice
 from typing import Optional, Tuple
 from warnings import warn
-from random import choice
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Maze(object):
@@ -148,6 +149,13 @@ class Maze(object):
             Новый статус блока
         """
         self.__matrix[coordinates] = new_block
+
+    def reset(self):
+        if self.__matrix is not None:
+            for height_idx in range(self.height):
+                for width_idx in range(self.width):
+                    if self.matrix[height_idx, width_idx] != -1:
+                        self.matrix[height_idx, width_idx] = 0
 
 
 if __name__ == '__main__':
