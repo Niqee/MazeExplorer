@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional
+from typing import Optional, Tuple
 from warnings import warn
 from random import choice
 
@@ -135,6 +135,19 @@ class Maze(object):
             Матрица лабиринта
         """
         self.__matrix = matrix
+
+    def change_block(self, coordinates: Tuple[int, int], new_block: int) -> None:
+        """
+        Метод для изменения типа блока лабиринта
+
+        Parameters
+        ----------
+        coordinates : tuple of int
+            Координаты необходимго блока
+        new_block : int
+            Новый статус блока
+        """
+        self.__matrix[coordinates] = new_block
 
 
 if __name__ == '__main__':
