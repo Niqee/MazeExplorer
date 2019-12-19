@@ -1,4 +1,5 @@
 import sys
+from tkinter import filedialog
 from typing import Optional, List, Tuple
 from warnings import warn
 
@@ -15,17 +16,82 @@ class ExploreManager(object):
     """
     Класс для описания исследования лабиринта
     """
+    WALL_COLOR = (12, 22, 57)
+    UNEXPLORED_COLOR = (162, 162, 162)
+    PROCRASTINATED_COLOR = (245, 170, 42)
+    EXPLORED_COLOR = (90, 160, 90)
+    BOT_COLOR = (252, 26, 26)
 
     def __init__(self):
         self.maze: Optional[Maze] = None
         self.bot_list: Optional[List[Bot]] = None
         self.task_list: Optional[List[Tuple[int, int]]] = None
-        self.running: bool = False
+        self.ready: bool = False
+        plt.ion()
+        self.img = None
+        self.step = 0
 
-    def update_data(self, new_data):
-        self.setup_simulation(bot_number=new_data[0],
-                              height=new_data[1],
-                              width=new_data[2])
+    def update_data(self,
+                    new_bot_num: int,
+                    new_height: int = None,
+                    new_width: int = None,
+                    new_manual_matrix: np.ndarray = None):
+        """
+        Метод для обновления симуляции
+
+        Parameters
+        ----------
+        new_bot_num : int
+            Новое количество ботов
+        new_height : int
+            Новая вертикаль
+        new_width : int
+            Новая горизонталь
+        new_manual_matrix :int
+            Новая матрица
+        """
+        if new_manual_matrix is not None:
+            self.setup_simulation(bot_number=new_bot_num,
+                                  manual_matrix=new_manual_matrix)
+        else:
+            self.setup_simulation(bot_number=new_bot_num,
+                                  height=new_height,
+                                  width=new_width)
+        self.step = 0
+        self.show_matrix(hard=True)
+
+    def show_matrix(self, hard: bool = False):
+        """
+        Метод для вывода лабиринта
+
+        Parameters
+        ----------
+        hard : bool
+            Если True то график будет полностью сброшен перед отображением
+        """
+        show_matrix = np.zeros(self.maze.matrix.shape + tuple([3]))
+        for height_idx in range(self.maze.height):
+            for width_idx in range(self.maze.width):
+                if self.maze.matrix[height_idx, width_idx] == Maze.WALL_BLOCK:
+                    show_matrix[height_idx, width_idx, :] = ExploreManager.WALL_COLOR
+                elif self.maze.matrix[height_idx, width_idx] == Maze.UNEXPLORED_BLOCK:
+                    show_matrix[height_idx, width_idx, :] = ExploreManager.UNEXPLORED_COLOR
+                elif self.maze.matrix[height_idx, width_idx] == Maze.EXPLORED_BLOCK:
+                    show_matrix[height_idx, width_idx, :] = ExploreManager.EXPLORED_COLOR
+                elif self.maze.matrix[height_idx, width_idx] == Maze.PROCRASTINATED_BLOCK:
+                    show_matrix[height_idx, width_idx, :] = ExploreManager.PROCRASTINATED_COLOR
+                else:
+                    show_matrix[height_idx, width_idx, :] = ExploreManager.BOT_COLOR
+        if self.img is None or hard:
+            if self.img is not None:
+                plt.close()
+            _, ax = plt.subplots()
+            self.img = ax.imshow(show_matrix.astype(np.uint8))
+
+        else:
+            self.img.set_data(show_matrix.astype(np.uint8))
+        plt.draw()
+        plt.pause(0.01)
 
     def setup_simulation(self,
                          manual_matrix: np.ndarray = None,
@@ -72,7 +138,9 @@ class ExploreManager(object):
         self.maze.change_block(starting_point, Maze.BOT_BLOCK)
         self.bot_list[0].activate(starting_point)
 
-        self.running = True
+        self.step = 1
+
+        self.ready = True
 
     def get_active_bots(self) -> List[Bot]:
         """
@@ -156,39 +224,124 @@ class ExploreManager(object):
             bot.activate(task)
             self.maze.change_block(task, Maze.BOT_BLOCK)
 
-    def on_step_click(self):
-        if self.running:
-            self.exploring_step()
-        else:
-            warn('Входные параметры не заданны, выполнение невозможно')
+        self.step += 1
 
-    def on_reset_click(self):
+    def get_step(self) -> int:
+        """
+        Метод для получения номера текущего хода
+
+        Returns
+        -------
+        step : int
+            Номер текущего хода
+        """
+        return self.step
+
+    def get_progress(self) -> float:
+        """
+        Метод для получения текущего прогресса
+
+        Returns
+        -------
+        progress : float
+            Текущий прогресс
+        """
+        not_wall_num = np.sum(self.maze.matrix != Maze.WALL_BLOCK)
+        explored_num = np.sum(self.maze.matrix == Maze.EXPLORED_BLOCK)
+        return explored_num / not_wall_num
+
+    def on_step_click(self, win: MainWindow):
+        """
+        Метод, вызывающийся при нажатии на кнопку "Шаг"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
+        if not self.ready:
+            warn('Входные параметры не заданны, выполнение невозможно')
+        elif self.get_progress() == 1:
+            warn('Лабиринт пройден')
+        else:
+            self.exploring_step()
+            win.update_step(self.step)
+            win.update_progress(self.get_progress())
+            self.show_matrix()
+
+    def on_reset_click(self, win: MainWindow):
+        """
+        Метод, вызывающийся при нажатии на кнопку "Сброс"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
         if self.maze is not None:
             self.maze.reset()
             self.setup_simulation(manual_matrix=self.maze.matrix)
+            win.update_step(self.step)
+            win.update_progress(self.get_progress())
+            self.show_matrix()
         else:
             warn('Лабиринт не задан, сброс невозможен')
+
+    def on_save_click(self):
+        """
+        Метод, вызывающийся при нажатии на кнопку "Сохранить лабиринт"
+        """
+        if self.maze is None:
+            warn('Лабиринт не задан, сохранение невозможно')
+            return
+        f = filedialog.asksaveasfile(mode='w', defaultextension=".txt")
+        if f is not None:
+            save_matrix = self.maze.matrix
+            for h_idx in range(self.maze.height):
+                for w_idx in range(self.maze.width):
+                    save_matrix[h_idx, w_idx] = Maze.WALL_BLOCK \
+                        if self.maze.matrix[h_idx, w_idx] == Maze.WALL_BLOCK \
+                        else Maze.UNEXPLORED_BLOCK
+            # noinspection PyTypeChecker
+            np.savetxt(f, save_matrix)
+            f.close()
+
+    def on_step20_click(self, win):
+        """
+        Метод, вызывающийся при нажатии на кнопку "20 Шагов"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
+        for i in range(20):
+            self.on_step_click(win)
+
+    def on_step10_click(self, win):
+        """
+        Метод, вызывающийся при нажатии на кнопку "10 Шагов"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
+        for i in range(10):
+            self.on_step_click(win)
 
 
 if __name__ == '__main__':
     em = ExploreManager()
-    # while len(em.get_active_bots()) > 0:
-    #     em.exploring_step()
-    #     plt.imshow(em.maze.matrix)
-    #     plt.pause(0.01)
-    #     plt.clf()
-    #
-    # plt.imshow(em.maze.matrix)
-    # plt.show()
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow(em)
 
-    # window.link_start_btn()
-    # window.link_stop_btn()
-    window.link_step_btn(em.on_step_click)
-    window.link_reset_btn(em.on_reset_click)
+    window.link_step20_btn(lambda: em.on_step20_click(window))
+    window.link_step10_btn(lambda: em.on_step10_click(window))
+    window.link_step_btn(lambda: em.on_step_click(window))
+    window.link_reset_btn(lambda: em.on_reset_click(window))
     window.link_new_maze_btn(window.setup_win.show)
-    # window.link_save_btn()
+    window.link_save_btn(em.on_save_click)
 
     window.show()
     app.exec_()

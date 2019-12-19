@@ -58,16 +58,16 @@
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
-        <widget class="QPushButton" name="StartBtn">
+        <widget class="QPushButton" name="Step20Btn">
          <property name="text">
-          <string>Пуск</string>
+          <string>20 Шагов</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="StopBtn">
+        <widget class="QPushButton" name="Step10Btn">
          <property name="text">
-          <string>Стоп</string>
+          <string>10 Шагов</string>
          </property>
         </widget>
        </item>
