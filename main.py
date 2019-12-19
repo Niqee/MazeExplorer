@@ -1,4 +1,5 @@
 import sys
+from tkinter import filedialog
 from typing import Optional, List, Tuple
 from warnings import warn
 
@@ -25,26 +26,37 @@ class ExploreManager(object):
         self.maze: Optional[Maze] = None
         self.bot_list: Optional[List[Bot]] = None
         self.task_list: Optional[List[Tuple[int, int]]] = None
-        self.running: bool = False
+        self.ready: bool = False
         plt.ion()
         self.img = None
         self.step = 0
 
-    def update_data(self, new_data: Tuple[int, int, int]):
+    def update_data(self,
+                    new_bot_num: int,
+                    new_height: int = None,
+                    new_width: int = None,
+                    new_manual_matrix: np.ndarray = None):
         """
         Метод для обновления симуляции
 
         Parameters
         ----------
-        new_data : tuple
-            Новые данные в формате (new_bot_num, new_height, new_width), где
-                new_bot_num - новое количество ботов
-                new_height - новая вертикаль
-                new_width - новая горизоталь
+        new_bot_num : int
+            Новое количество ботов
+        new_height : int
+            Новая вертикаль
+        new_width : int
+            Новая горизонталь
+        new_manual_matrix :int
+            Новая матрица
         """
-        self.setup_simulation(bot_number=new_data[0],
-                              height=new_data[1],
-                              width=new_data[2])
+        if new_manual_matrix is not None:
+            self.setup_simulation(bot_number=new_bot_num,
+                                  manual_matrix=new_manual_matrix)
+        else:
+            self.setup_simulation(bot_number=new_bot_num,
+                                  height=new_height,
+                                  width=new_width)
         self.step = 0
         self.show_matrix(hard=True)
 
@@ -128,7 +140,7 @@ class ExploreManager(object):
 
         self.step = 1
 
-        self.running = True
+        self.ready = True
 
     def get_active_bots(self) -> List[Bot]:
         """
@@ -247,13 +259,15 @@ class ExploreManager(object):
         win : MainWindow
             Обьект главного окна
         """
-        if self.running:
+        if not self.ready:
+            warn('Входные параметры не заданны, выполнение невозможно')
+        elif self.get_progress() == 1:
+            warn('Лабиринт пройден')
+        else:
             self.exploring_step()
             win.update_step(self.step)
             win.update_progress(self.get_progress())
             self.show_matrix()
-        else:
-            warn('Входные параметры не заданны, выполнение невозможно')
 
     def on_reset_click(self, win: MainWindow):
         """
@@ -273,18 +287,61 @@ class ExploreManager(object):
         else:
             warn('Лабиринт не задан, сброс невозможен')
 
+    def on_save_click(self):
+        """
+        Метод, вызывающийся при нажатии на кнопку "Сохранить лабиринт"
+        """
+        if self.maze is None:
+            warn('Лабиринт не задан, сохранение невозможно')
+            return
+        f = filedialog.asksaveasfile(mode='w', defaultextension=".txt")
+        if f is not None:
+            save_matrix = self.maze.matrix
+            for h_idx in range(self.maze.height):
+                for w_idx in range(self.maze.width):
+                    save_matrix[h_idx, w_idx] = Maze.WALL_BLOCK \
+                        if self.maze.matrix[h_idx, w_idx] == Maze.WALL_BLOCK \
+                        else Maze.UNEXPLORED_BLOCK
+            # noinspection PyTypeChecker
+            np.savetxt(f, save_matrix)
+            f.close()
+
+    def on_step20_click(self, win):
+        """
+        Метод, вызывающийся при нажатии на кнопку "20 Шагов"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
+        for i in range(20):
+            self.on_step_click(win)
+
+    def on_step10_click(self, win):
+        """
+        Метод, вызывающийся при нажатии на кнопку "10 Шагов"
+
+        Parameters
+        ----------
+        win : MainWindow
+            Обьект главного окна
+        """
+        for i in range(10):
+            self.on_step_click(win)
+
 
 if __name__ == '__main__':
     em = ExploreManager()
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow(em)
 
-    # window.link_start_btn()
-    # window.link_stop_btn()
+    window.link_step20_btn(lambda: em.on_step20_click(window))
+    window.link_step10_btn(lambda: em.on_step10_click(window))
     window.link_step_btn(lambda: em.on_step_click(window))
     window.link_reset_btn(lambda: em.on_reset_click(window))
     window.link_new_maze_btn(window.setup_win.show)
-    # window.link_save_btn()
+    window.link_save_btn(em.on_save_click)
 
     window.show()
     app.exec_()
