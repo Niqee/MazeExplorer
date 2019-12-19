@@ -32,10 +32,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.SaveBtn.clicked.connect(func)
 
     def update_progress(self, val):
-        pass
+        self.ProgressBar.setValue(int(val*100))
 
     def update_step(self, val):
-        pass
+        self.StepLabel.setText("Шаг : {}".format(val))
 
 
 class SetupWindow(QtWidgets.QMainWindow, Ui_SetupWindow):
@@ -49,5 +49,7 @@ class SetupWindow(QtWidgets.QMainWindow, Ui_SetupWindow):
         bot_num = self.BotNumberSpinBox.value()
         height = self.MazeHeightSpinBox.value()
         width = self.MazeWidthSpinBox.value()
+        self.main_win.update_progress(0)
+        self.main_win.update_step(1)
         self.main_win.update_data((bot_num, height, width))
         self.close()
