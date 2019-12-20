@@ -1,4 +1,5 @@
 import sys
+from time import sleep
 from tkinter import filedialog
 from typing import Optional, List, Tuple
 from warnings import warn
@@ -259,6 +260,7 @@ class ExploreManager(object):
         win : MainWindow
             Обьект главного окна
         """
+        sleep(0.1)
         if not self.ready:
             warn('Входные параметры не заданны, выполнение невозможно')
         elif self.get_progress() == 1:
@@ -278,6 +280,7 @@ class ExploreManager(object):
         win : MainWindow
             Обьект главного окна
         """
+        sleep(0.1)
         if self.maze is not None:
             self.maze.reset()
             self.setup_simulation(manual_matrix=self.maze.matrix)
@@ -291,6 +294,7 @@ class ExploreManager(object):
         """
         Метод, вызывающийся при нажатии на кнопку "Сохранить лабиринт"
         """
+        sleep(0.1)
         if self.maze is None:
             warn('Лабиринт не задан, сохранение невозможно')
             return
@@ -315,6 +319,7 @@ class ExploreManager(object):
         win : MainWindow
             Обьект главного окна
         """
+        sleep(0.1)
         for i in range(20):
             self.on_step_click(win)
 
@@ -327,6 +332,7 @@ class ExploreManager(object):
         win : MainWindow
             Обьект главного окна
         """
+        sleep(0.1)
         for i in range(10):
             self.on_step_click(win)
 
