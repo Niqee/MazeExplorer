@@ -5,7 +5,9 @@ from typing import Optional, List, Tuple
 from warnings import warn
 
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
+import pandas as pd
 from PyQt5 import QtWidgets
 
 from exploring import *
@@ -23,13 +25,21 @@ class ExploreManager(object):
     EXPLORED_COLOR = (90, 160, 90)
     BOT_COLOR = (252, 26, 26)
 
+    START_COLOR_G = (0.6, 0.6, 0.6)
+    PROCRASTINATED_COLOR_G = (0.96, 0.67, 0.16)
+    EXPLORED_COLOR_G = (0.35, 0.63, 0.35)
+    BOT_COLOR_G = (0.99, 0.1, 0.1)
+
     def __init__(self):
         self.maze: Optional[Maze] = None
         self.bot_list: Optional[List[Bot]] = None
         self.task_list: Optional[List[Tuple[int, int]]] = None
+        self.graph: Optional[nx.Graph] = None
         self.ready: bool = False
         plt.ion()
-        self.img = None
+        self.matrix_img = None
+        self.graph_colormap: Optional[pd.DataFrame] = None
+        self.graph_ax = None
         self.step = 0
 
     def update_data(self,
@@ -58,7 +68,6 @@ class ExploreManager(object):
             self.setup_simulation(bot_number=new_bot_num,
                                   height=new_height,
                                   width=new_width)
-        self.step = 0
         self.show_matrix(hard=True)
 
     def show_matrix(self, hard: bool = False):
@@ -83,14 +92,18 @@ class ExploreManager(object):
                     show_matrix[height_idx, width_idx, :] = ExploreManager.PROCRASTINATED_COLOR
                 else:
                     show_matrix[height_idx, width_idx, :] = ExploreManager.BOT_COLOR
-        if self.img is None or hard:
-            if self.img is not None:
-                plt.close()
-            _, ax = plt.subplots()
-            self.img = ax.imshow(show_matrix.astype(np.uint8))
 
+        if self.matrix_img is None or hard:
+            if self.matrix_img is not None:
+                plt.close()
+            fig, (matrix_ax, self.graph_ax) = plt.subplots(ncols=2, figsize=(5, 5))
+            fig.set_size_inches(10, 5)
+
+            self.matrix_img = matrix_ax.imshow(show_matrix.astype(np.uint8))
         else:
-            self.img.set_data(show_matrix.astype(np.uint8))
+            self.matrix_img.set_data(show_matrix.astype(np.uint8))
+            self.graph_ax.clear()
+        nx.draw_kamada_kawai(self.graph, ax=self.graph_ax, with_labels=True, node_color=self.graph_colormap['color'])
         plt.draw()
         plt.pause(0.01)
 
@@ -139,6 +152,12 @@ class ExploreManager(object):
         self.maze.change_block(starting_point, Maze.BOT_BLOCK)
         self.bot_list[0].activate(starting_point)
 
+        self.graph = nx.Graph()
+        self.graph_colormap = pd.DataFrame(
+            {'id': [str((-1, -1)), str(starting_point)], 'color': [self.START_COLOR_G, self.BOT_COLOR_G]}).set_index(
+            'id')
+        self.graph.add_edge((-1, -1), starting_point)
+
         self.step = 1
 
         self.ready = True
@@ -178,39 +197,64 @@ class ExploreManager(object):
         for bot in active_bots:
             bot_position = bot.position
             self.maze.change_block(bot_position, Maze.EXPLORED_BLOCK)
+            self.graph_colormap.loc[str(bot_position), 'color'] = self.EXPLORED_COLOR_G
             got_task: bool = False
 
             if self.maze.matrix[bot_position[0] - 1, bot_position[1]] == Maze.UNEXPLORED_BLOCK:
                 got_task = True
                 bot.move_up()
                 self.maze.change_block((bot_position[0] - 1, bot_position[1]), Maze.BOT_BLOCK)
+                self.graph.add_edge(bot_position, bot.position)
+                new_node = pd.DataFrame([{'id': str(bot.position), 'color': self.BOT_COLOR_G}]).set_index('id')
+                self.graph_colormap = self.graph_colormap.append(new_node)
 
             if self.maze.matrix[bot_position[0] + 1, bot_position[1]] == Maze.UNEXPLORED_BLOCK:
                 if not got_task:
                     got_task = True
                     bot.move_down()
                     self.maze.change_block((bot_position[0] + 1, bot_position[1]), Maze.BOT_BLOCK)
+                    self.graph.add_edge(bot_position, bot.position)
+                    new_node = pd.DataFrame([{'id': str(bot.position), 'color': self.BOT_COLOR_G}]).set_index('id')
                 else:
                     self.task_list.append((bot_position[0] + 1, bot_position[1]))
                     self.maze.change_block((bot_position[0] + 1, bot_position[1]), Maze.PROCRASTINATED_BLOCK)
+                    self.graph.add_edge(bot_position, (bot_position[0] + 1, bot_position[1]))
+                    new_node = pd.DataFrame(
+                        [{'id': str((bot_position[0] + 1, bot_position[1])),
+                          'color': self.PROCRASTINATED_COLOR_G}]).set_index('id')
+                self.graph_colormap = self.graph_colormap.append(new_node)
 
             if self.maze.matrix[bot_position[0], bot_position[1] - 1] == Maze.UNEXPLORED_BLOCK:
                 if not got_task:
                     got_task = True
                     bot.move_left()
                     self.maze.change_block((bot_position[0], bot_position[1] - 1), Maze.BOT_BLOCK)
+                    self.graph.add_edge(bot_position, bot.position)
+                    new_node = pd.DataFrame([{'id': str(bot.position), 'color': self.BOT_COLOR_G}]).set_index('id')
                 else:
                     self.task_list.append((bot_position[0], bot_position[1] - 1))
                     self.maze.change_block((bot_position[0], bot_position[1] - 1), Maze.PROCRASTINATED_BLOCK)
+                    self.graph.add_edge(bot_position, (bot_position[0], bot_position[1] - 1))
+                    new_node = pd.DataFrame(
+                        [{'id': str((bot_position[0], bot_position[1] - 1)),
+                          'color': self.PROCRASTINATED_COLOR_G}]).set_index('id')
+                self.graph_colormap = self.graph_colormap.append(new_node)
 
             if self.maze.matrix[bot_position[0], bot_position[1] + 1] == Maze.UNEXPLORED_BLOCK:
                 if not got_task:
                     got_task = True
                     bot.move_right()
                     self.maze.change_block((bot_position[0], bot_position[1] + 1), Maze.BOT_BLOCK)
+                    self.graph.add_edge(bot_position, bot.position)
+                    new_node = pd.DataFrame([{'id': str(bot.position), 'color': self.BOT_COLOR_G}]).set_index('id')
                 else:
                     self.task_list.append((bot_position[0], bot_position[1] + 1))
                     self.maze.change_block((bot_position[0], bot_position[1] + 1), Maze.PROCRASTINATED_BLOCK)
+                    self.graph.add_edge(bot_position, (bot_position[0], bot_position[1] + 1))
+                    new_node = pd.DataFrame(
+                        [{'id': str((bot_position[0], bot_position[1] + 1)),
+                          'color': self.PROCRASTINATED_COLOR_G}]).set_index('id')
+                self.graph_colormap = self.graph_colormap.append(new_node)
 
             if not got_task:
                 bot.deactivate()
@@ -224,6 +268,7 @@ class ExploreManager(object):
             task: Tuple[int, int] = self.task_list.pop(0)
             bot.activate(task)
             self.maze.change_block(task, Maze.BOT_BLOCK)
+            self.graph_colormap.loc[str(bot.position), 'color'] = self.BOT_COLOR_G
 
         self.step += 1
 
